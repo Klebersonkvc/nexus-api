@@ -1,0 +1,88 @@
+﻿name: CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  sast:
+    name: Security Scan (SAST)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Install Dependencies
+        run: npm ci
+      - name: Run Security Audit
+        run: npm audit --omit=dev --audit-level=critical
+
+  build:
+    name: Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Install Dependencies
+        run: npm ci
+      - name: Verify App Loads
+        run: node -e "require('./src/app.js'); console.log('Build OK')"
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: [sast, build]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Install Dependencies
+        run: npm ci
+      - name: Run Unit Tests
+        run: npm test
+
+  lint-quality:
+    name: Lint & Code Quality
+    runs-on: ubuntu-latest
+    needs: [sast, build]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Install Dependencies
+        run: npm ci
+      - name: Run Lint
+        run: npm run lint
+
+  api-tests:
+    name: API E2E Tests (Curl)
+    runs-on: ubuntu-latest
+    needs: [test, lint-quality]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Install Dependencies
+        run: npm ci
+      - name: Start API
+        run: npm start &
+      - name: Run API Tests (Smoke, Sanity, Regression)
+        run: bash scripts/api-tests.sh
